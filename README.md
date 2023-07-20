@@ -1,3 +1,7 @@
+# Sigmacord
+
+Meet Sigmacord - the efficient Haskell framework for developing powerful Discord bots. Embrace Haskell's speed, safety, and reliability to create seamless user experiences with robust performance. 
+
 # Installation
 
 You can get Sigmacord latest version from [Hackage](https://hackage.haskell.org/package/sigmacord), below are various methods for installation:
@@ -86,6 +90,31 @@ fromBot = userIsBot . messageAuthor
 isPing :: Message -> Bool
 isPing = ("ping" `isPrefixOf`) . toLower . messageContent
 ```
+
+# Error Handling
+
+```haskell
+example :: IO ()
+example = do userFacingError <- Sigmacord $ def
+                 { SigmacordToken = "TOKEN"
+
+                 , SigmacordOnLog = \s -> TIO.putStrLn s >> TIO.putStrLn ""
+                 }
+
+             TIO.putStrLn userFacingError
+```
+
+1. Always print the `userFacingError` Text returned from `runSigmacord`. This is used for errors that cannot be recovered from.
+
+2. For debugging purposes, use the `SigmacordOnLog` handler to print information as it happens.
+
+### Reporting Issues
+
+If something else goes wrong with the library and it's not recoverable or debuggable on your end, please consider opening an issue on the project's repository. Attaching a log to the issue can be very helpful for the developers to diagnose the problem.
+
+### Handling Logs with `SigmacordOnLog`
+
+To enable real-time logging of information, assign a handler to the `SigmacordOnLog` function with the type signature `SigmacordOnLog :: Text -> IO ()`. This function will be called whenever there is a new log entry. Before posting any logs or error messages, make sure to remove any sensitive information to protect your privacy and security.
 
 # Documentation
 
