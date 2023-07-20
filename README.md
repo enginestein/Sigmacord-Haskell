@@ -62,10 +62,10 @@ import qualified Sigmacord.Requests as R
 -- | Replies "pong" to every message that starts with "ping"
 pingPongExample :: IO ()
 pingPongExample = do
-    userFacingError <- runDiscord $ def
-        { discordToken = "TOKEN"
-        , discordOnEvent = eventHandler
-        , discordOnLog = \s -> TIO.putStrLn s >> TIO.putStrLn ""
+    userFacingError <- runSigmacord $ def
+        { SigmacordToken = "TOKEN"
+        , SigmacordOnEvent = eventHandler
+        , SigmacordOnLog = \s -> TIO.putStrLn s >> TIO.putStrLn ""
         } -- if you see OnLog error, post in the discord / open an issue
 
     TIO.putStrLn userFacingError
