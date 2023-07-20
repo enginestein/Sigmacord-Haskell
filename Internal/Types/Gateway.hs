@@ -1,0 +1,248 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE RecordWildCards #-}
+
+
+
+module Sigmacord.Internal.Types.Gateway where
+
+import System.Info
+
+import qualified Data.Text as T
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Aeson
+import Data.Aeson.Types
+import Data.Default (Default, def)
+import Data.Maybe (fromMaybe)
+import Data.Functor
+import Text.Read (readMaybe)
+
+import Sigmacord.Internal.Types.Prelude
+import Sigmacord.Internal.Types.Events
+import Sigmacord.Internal.Types.Guild (Activity (..))
+
+
+data GatewayReceivable
+  = Dispatch EventInternalParse Integer
+  | HeartbeatRequest Integer
+  | Reconnect
+  | InvalidSession Bool
+  | Hello Integer
+  | HeartbeatAck
+  | ParseError T.Text
+  deriving (Show, Eq, Read)
+
+
+data GatewaySendableInternal
+  = Heartbeat Integer
+  | Identify Auth GatewayIntent (Int, Int)
+  | Resume Auth T.Text Integer
+  deriving (Show, Read, Eq, Ord)
+
+
+
+
+
+
+data GatewayIntent = GatewayIntent
+  { gatewayIntentGuilds :: Bool
+  , gatewayIntentMembers :: Bool
+  , gatewayIntentBans :: Bool
+  , gatewayIntentEmojis :: Bool
+  , gatewayIntentIntegrations :: Bool
+  , gatewayIntentWebhooks :: Bool
+  , gatewayIntentInvites :: Bool
+  , gatewayIntentVoiceStates :: Bool
+  , gatewayIntentPresences :: Bool
+  , gatewayIntentMessageChanges :: Bool
+  , gatewayIntentMessageReactions :: Bool
+  , gatewayIntentMessageTyping :: Bool
+  , gatewayIntentDirectMessageChanges :: Bool
+  , gatewayIntentDirectMessageReactions :: Bool
+  , gatewayIntentDirectMessageTyping :: Bool
+  , gatewayIntentMessageContent :: Bool
+  } deriving (Show, Read, Eq, Ord)
+
+instance Default GatewayIntent where
+  def = GatewayIntent { gatewayIntentGuilds                 = True
+                      , gatewayIntentMembers                = False 
+                      , gatewayIntentBans                   = True
+                      , gatewayIntentEmojis                 = True
+                      , gatewayIntentIntegrations           = True
+                      , gatewayIntentWebhooks               = True
+                      , gatewayIntentInvites                = True
+                      , gatewayIntentVoiceStates            = True
+                      , gatewayIntentPresences              = False  
+                      , gatewayIntentMessageChanges         = True
+                      , gatewayIntentMessageReactions       = True
+                      , gatewayIntentMessageTyping          = True
+                      , gatewayIntentDirectMessageChanges   = True
+                      , gatewayIntentDirectMessageReactions = True
+                      , gatewayIntentDirectMessageTyping    = True
+                      , gatewayIntentMessageContent         = True
+                      }
+
+compileGatewayIntent :: GatewayIntent -> Int
+compileGatewayIntent GatewayIntent{..} =
+ sum $ [ if on then flag else 0
+       | (flag, on) <- [ (     1, gatewayIntentGuilds)
+                       , (2 ^  1, gatewayIntentMembers)
+                       , (2 ^  2, gatewayIntentBans)
+                       , (2 ^  3, gatewayIntentEmojis)
+                       , (2 ^  4, gatewayIntentIntegrations)
+                       , (2 ^  5, gatewayIntentWebhooks)
+                       , (2 ^  6, gatewayIntentInvites)
+                       , (2 ^  7, gatewayIntentVoiceStates)
+                       , (2 ^  8, gatewayIntentPresences)
+                       , (2 ^  9, gatewayIntentMessageChanges)
+                       , (2 ^ 10, gatewayIntentMessageReactions)
+                       , (2 ^ 11, gatewayIntentMessageTyping)
+                       , (2 ^ 12, gatewayIntentDirectMessageChanges)
+                       , (2 ^ 13, gatewayIntentDirectMessageReactions)
+                       , (2 ^ 14, gatewayIntentDirectMessageTyping)
+                       , (2 ^ 15, gatewayIntentMessageContent)
+                       ]
+       ]
+
+
+data GatewaySendable
+  = RequestGuildMembers RequestGuildMembersOpts
+  | UpdateStatus UpdateStatusOpts
+  | UpdateStatusVoice UpdateStatusVoiceOpts
+  deriving (Show, Read, Eq, Ord)
+
+
+data RequestGuildMembersOpts = RequestGuildMembersOpts
+                             { requestGuildMembersOptsGuildId :: GuildId
+                             , requestGuildMembersOptsNamesStartingWith :: T.Text
+                             , requestGuildMembersOptsLimit :: Integer }
+  deriving (Show, Read, Eq, Ord)
+
+
+data UpdateStatusVoiceOpts = UpdateStatusVoiceOpts
+                           { updateStatusVoiceOptsGuildId :: GuildId
+                           , updateStatusVoiceOptsChannelId :: Maybe ChannelId
+                           , updateStatusVoiceOptsIsMuted :: Bool
+                           , updateStatusVoiceOptsIsDeaf :: Bool
+                           }
+  deriving (Show, Read, Eq, Ord)
+
+
+data UpdateStatusOpts = UpdateStatusOpts
+                      { updateStatusOptsSince :: Maybe UTCTime
+                      , updateStatusOptsGame :: Maybe Activity
+                      , updateStatusOptsNewStatus :: UpdateStatusType
+                      , updateStatusOptsAFK :: Bool
+                      }
+  deriving (Show, Read, Eq, Ord)
+
+
+data UpdateStatusType = UpdateStatusOnline
+                      | UpdateStatusDoNotDisturb
+                      | UpdateStatusAwayFromKeyboard
+                      | UpdateStatusInvisibleOffline
+                      | UpdateStatusOffline
+  deriving (Show, Read, Eq, Ord, Enum)
+
+
+
+statusString :: UpdateStatusType -> T.Text
+statusString s = case s of
+  UpdateStatusOnline -> "online"
+  UpdateStatusDoNotDisturb -> "dnd"
+  UpdateStatusAwayFromKeyboard -> "idle"
+  UpdateStatusInvisibleOffline -> "invisible"
+  UpdateStatusOffline -> "offline"
+
+instance FromJSON GatewayReceivable where
+  parseJSON = withObject "payload" $ \o -> do
+    op <- o .: "op" :: Parser Int
+    case op of
+      0  -> do etype <- o .: "t"
+               ejson <- o .: "d"
+               case ejson of
+                 Object hm -> Dispatch <$> eventParse etype hm <*> o .: "s"
+                 _other -> Dispatch (InternalUnknownEvent "Dispatch payload wasn't an object" o)
+                                  <$> o .: "s"
+      1  -> HeartbeatRequest . fromMaybe 0 . readMaybe <$> o .: "d"
+      7  -> pure Reconnect
+      9  -> InvalidSession <$> o .: "d"
+      10 -> do od <- o .: "d"
+               int <- od .: "heartbeat_interval"
+               pure (Hello int)
+      11 -> pure HeartbeatAck
+      _  -> fail ("Unknown Receivable payload ID:" <> show op)
+
+
+
+
+
+
+
+
+
+
+
+
+instance ToJSON GatewaySendableInternal where
+  toJSON (Heartbeat i) = object [ "op" .= (1 :: Int), "d" .= if i <= 0 then "null" else show i ]
+  toJSON (Identify token intent shard) = object [
+      "op" .= (2 :: Int)
+    , "d"  .= object [
+        "token" .= authToken token
+      , "intents" .= compileGatewayIntent intent
+      , "properties" .= object [
+          "$os"                .= os
+        , "$browser"           .= ("Sigmacord-haskell" :: T.Text)
+        , "$device"            .= ("Sigmacord-haskell" :: T.Text)
+        , "$referrer"          .= (""                :: T.Text)
+        , "$referring_domain"  .= (""                :: T.Text)
+        ]
+      , "compress" .= False
+      , "large_threshold" .= (50 :: Int) 
+      , "shard" .= shard
+      ]
+    ]
+  toJSON (Resume token session seqId) = object [
+      "op" .= (6 :: Int)
+    , "d"  .= object [
+        "token"      .= authToken token
+      , "session_id" .= session
+      , "seq"        .= seqId
+      ]
+    ]
+
+instance ToJSON GatewaySendable where
+  toJSON (UpdateStatus (UpdateStatusOpts since game status afk)) = object [
+      "op" .= (3 :: Int)
+    , "d"  .= object [
+        "since" .= (since <&> \s -> 1000 * utcTimeToPOSIXSeconds s) 
+      , "afk" .= afk
+      , "status" .= statusString status
+      , "game" .= (game <&> \a -> object [
+                                "name" .= activityName a
+                              , "type" .= fromSigmacordType (activityType a)
+                              , "url" .= activityUrl a
+                              ])
+      ]
+    ]
+  toJSON (UpdateStatusVoice (UpdateStatusVoiceOpts guild channel mute deaf)) =
+    object [
+      "op" .= (4 :: Int)
+    , "d"  .= object [
+        "guild_id"   .= guild
+      , "channel_id" .= channel
+      , "self_mute"  .= mute
+      , "self_deaf"  .= deaf
+      ]
+    ]
+  toJSON (RequestGuildMembers (RequestGuildMembersOpts guild query limit)) =
+    object [
+      "op" .= (8 :: Int)
+    , "d"  .= object [
+        "guild_id" .= guild
+      , "query"    .= query
+      , "limit"    .= limit
+      ]
+    ]

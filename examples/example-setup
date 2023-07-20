@@ -1,0 +1,1 @@
+Create a file named auth-token.secret, generate a token from discord developer portal and add it in the file.Create a file named guildid.secret and add the guild ID of your test server.

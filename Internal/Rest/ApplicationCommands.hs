@@ -1,0 +1,172 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+
+module Sigmacord.Internal.Rest.ApplicationCommands where
+
+import Data.Aeson (Value)
+import Sigmacord.Internal.Rest.Prelude
+import Sigmacord.Internal.Types
+import Sigmacord.Internal.Types.ApplicationCommands
+    ( ApplicationCommandPermissions,
+      GuildApplicationCommandPermissions(GuildApplicationCommandPermissions),
+      EditApplicationCommand,
+      CreateApplicationCommand,
+      ApplicationCommand )
+import Network.HTTP.Req as R
+
+instance Request (ApplicationCommandRequest a) where
+  jsonRequest = applicationCommandJsonRequest
+  majorRoute = applicationCommandMajorRoute
+
+
+data ApplicationCommandRequest a where
+  
+  GetGlobalApplicationCommands :: ApplicationId
+                               -> ApplicationCommandRequest [ApplicationCommand]
+  
+  
+  
+  CreateGlobalApplicationCommand :: ApplicationId
+                                 -> CreateApplicationCommand
+                                 -> ApplicationCommandRequest ApplicationCommand
+  
+  GetGlobalApplicationCommand :: ApplicationId
+                              -> ApplicationCommandId
+                              -> ApplicationCommandRequest ApplicationCommand
+  
+  
+  
+  EditGlobalApplicationCommand :: ApplicationId
+                               -> ApplicationCommandId
+                               -> EditApplicationCommand
+                               -> ApplicationCommandRequest ApplicationCommand
+  
+  DeleteGlobalApplicationCommand :: ApplicationId
+                                 -> ApplicationCommandId
+                                 -> ApplicationCommandRequest ()
+  
+  
+  
+  BulkOverWriteGlobalApplicationCommand :: ApplicationId
+                                        -> [CreateApplicationCommand]
+                                        -> ApplicationCommandRequest ()
+  
+  GetGuildApplicationCommands :: ApplicationId
+                              -> GuildId
+                              -> ApplicationCommandRequest [ApplicationCommand]
+  
+  
+  
+  
+  
+  CreateGuildApplicationCommand :: ApplicationId
+                                -> GuildId
+                                -> CreateApplicationCommand
+                                -> ApplicationCommandRequest ApplicationCommand
+  
+  GetGuildApplicationCommand :: ApplicationId
+                             -> GuildId
+                             -> ApplicationCommandId
+                             -> ApplicationCommandRequest ApplicationCommand
+  
+  
+  EditGuildApplicationCommand :: ApplicationId
+                              -> GuildId
+                              -> ApplicationCommandId
+                              -> CreateApplicationCommand
+                              -> ApplicationCommandRequest ApplicationCommand
+  
+  DeleteGuildApplicationCommand :: ApplicationId
+                                -> GuildId
+                                -> ApplicationCommandId
+                                -> ApplicationCommandRequest ()
+  
+  
+  
+  BulkOverWriteGuildApplicationCommand :: ApplicationId
+                                       -> GuildId
+                                       -> [CreateApplicationCommand]
+                                       -> ApplicationCommandRequest ()
+  
+  GetGuildApplicationCommandPermissions :: ApplicationId
+                                        -> GuildId
+                                        -> ApplicationCommandRequest GuildApplicationCommandPermissions
+  
+  GetApplicationCommandPermissions :: ApplicationId
+                                   -> GuildId
+                                   -> ApplicationCommandId
+                                   -> ApplicationCommandRequest GuildApplicationCommandPermissions
+  
+  
+  
+  
+  
+  
+  
+  EditApplicationCommandPermissions :: ApplicationId
+                                    -> GuildId
+                                    -> ApplicationCommandId
+                                    -> [ApplicationCommandPermissions]
+                                    -> ApplicationCommandRequest GuildApplicationCommandPermissions
+
+
+applications :: ApplicationId -> R.Url 'R.Https
+applications s = baseUrl /: "applications" /~ s
+
+
+applicationCommandMajorRoute :: ApplicationCommandRequest a -> String
+applicationCommandMajorRoute a = case a of
+  (GetGlobalApplicationCommands aid) -> "get_glob_appcomm" <> show aid
+  (CreateGlobalApplicationCommand aid _) -> "write_glob_appcomm" <> show aid
+  (GetGlobalApplicationCommand aid _) -> "get_glob_appcomm" <> show aid
+  (EditGlobalApplicationCommand aid _ _) -> "write_glob_appcomm" <> show aid
+  (DeleteGlobalApplicationCommand aid _) -> "write_glob_appcomm" <> show aid
+  (BulkOverWriteGlobalApplicationCommand aid _) -> "write_glob_appcomm" <> show aid
+  (GetGuildApplicationCommands aid _) -> "get_appcomm" <> show aid
+  (CreateGuildApplicationCommand aid _ _) -> "write_appcomm" <> show aid
+  (GetGuildApplicationCommand aid _ _) -> "get_appcomm" <> show aid
+  (EditGuildApplicationCommand aid _ _ _) -> "write_appcomm" <> show aid
+  (DeleteGuildApplicationCommand aid _ _) -> "write_appcomm" <> show aid
+  (BulkOverWriteGuildApplicationCommand aid _ _) -> "write_appcomm" <> show aid
+  (GetGuildApplicationCommandPermissions aid _) -> "appcom_perm " <> show aid
+  (GetApplicationCommandPermissions aid _ _) -> "appcom_perm " <> show aid
+  (EditApplicationCommandPermissions aid _ _ _) -> "appcom_perm " <> show aid
+
+
+applicationCommandJsonRequest :: ApplicationCommandRequest a -> JsonRequest
+applicationCommandJsonRequest a = case a of
+  (GetGlobalApplicationCommands aid) ->
+    Get (applications aid /: "commands") mempty
+  (CreateGlobalApplicationCommand aid cac) ->
+    Post (applications aid /: "commands") (convert cac) mempty
+  (GetGlobalApplicationCommand aid aci) ->
+    Get (applications aid /: "commands" /~ aci) mempty
+  (EditGlobalApplicationCommand aid aci eac) ->
+    Patch (applications aid /: "commands" /~ aci) (convert eac) mempty
+  (DeleteGlobalApplicationCommand aid aci) ->
+    Delete (applications aid /: "commands" /~ aci) mempty
+  (BulkOverWriteGlobalApplicationCommand aid cacs) ->
+    Put (applications aid /: "commands") (R.ReqBodyJson $ toJSON cacs) mempty
+  (GetGuildApplicationCommands aid gid) ->
+    Get (applications aid /: "guilds" /~ gid /: "commands") mempty
+  (CreateGuildApplicationCommand aid gid cac) ->
+    Post (applications aid /: "guilds" /~ gid /: "commands") (convert cac) mempty
+  (GetGuildApplicationCommand aid gid aci) ->
+    Get (applications aid /: "guilds" /~ gid /: "commands" /~ aci) mempty
+  (EditGuildApplicationCommand aid gid aci eac) ->
+    Patch (applications aid /: "guilds" /~ gid /: "commands" /~ aci) (convert eac) mempty
+  (DeleteGuildApplicationCommand aid gid aci) ->
+    Delete (applications aid /: "guilds" /~ gid /: "commands" /~ aci) mempty
+  (BulkOverWriteGuildApplicationCommand aid gid cacs) ->
+    Put (applications aid /: "guilds" /~ gid /: "commands") (R.ReqBodyJson $ toJSON cacs) mempty
+  (GetGuildApplicationCommandPermissions aid gid) ->
+    Get (applications aid /: "guilds" /~ gid /: "commands" /: "permissions") mempty
+  (GetApplicationCommandPermissions aid gid cid) ->
+    Get (applications aid /: "guilds" /~ gid /: "commands" /~ cid /: "permissions") mempty
+  (EditApplicationCommandPermissions aid gid cid ps) ->
+    Put (applications aid /: "guilds" /~ gid /: "commands" /~ cid /: "permissions") (R.ReqBodyJson $ toJSON (GuildApplicationCommandPermissions cid aid gid ps)) mempty
+  where
+    convert :: (ToJSON a) => a -> RestIO (ReqBodyJson Value)
+    convert = (pure @RestIO) . R.ReqBodyJson . toJSON
