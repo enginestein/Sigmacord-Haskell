@@ -1,4 +1,4 @@
-module Sigmacord.Handle
+smodule Sigmacord.Handle
   ( SigmacordHandle(..)
   , HandleThreadId(..) 
   ) where
