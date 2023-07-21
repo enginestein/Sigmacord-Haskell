@@ -1,6 +1,6 @@
 module Sigmacord.Handle
   ( SigmacordHandle(..)
-  , HandleThreadId(..)
+  , HandleThreadId(..) 
   ) where
 
 import Control.Concurrent (ThreadId, Chan, MVar)
@@ -8,7 +8,6 @@ import qualified Data.Text as T
 
 import Sigmacord.Internal.Rest (RestChanHandle(..))
 import Sigmacord.Internal.Gateway (GatewayHandle(..), CacheHandle(..))
-
 
 data HandleThreadId
   = 
