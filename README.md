@@ -1,6 +1,6 @@
 # Sigmacord
 
-Meet Sigmacord - the efficient Haskell framework for developing powerful Discord bots. Embrace Haskell's speed, safety, and reliability to create seamless user experiences with robust performance. 
+Meet Sigmacord - the efficient Haskell SDK for developing powerful Discord bots. Embrace Haskell's speed, safety, and reliability to create seamless user experiences with robust performance. 
 
 # Installation
 
